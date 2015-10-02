@@ -2,6 +2,7 @@
 require 'trollop'
 require 'droplet_kit'
 require 'yaml'
+require 'highline/import'
 
 opts = Trollop::options do
   banner <<-EOS
@@ -33,5 +34,27 @@ client = DropletKit::Client.new(access_token: config_load[:api_key])
 droplets = client.droplets.all
 
 selected_drop = droplets.each.find { |drop| drop.name == opts[:name] }
+dropstatus = client.droplets.find(id: selected_drop.id)
+drop_snapshots = client.droplets.snapshots(id: selected_drop.id)
+snapshot_count = drop_snapshots.each.count
+
 Trollop::die "Droplet #{opts[:name]} not found on account" if selected_drop.nil?
 puts "Droplet #{opts[:name]} - ID: #{selected_drop.id}"
+puts "Status: #{dropstatus.status}"
+puts "---"
+if snapshot_count == 0
+  puts "No snapshots or backups saved for this droplet!"
+else
+  puts "#{snapshot_count} snapshots/backups found:"
+  drop_snapshots.each do |snap|
+    puts "Snapshot ID #{snap.id}: \"#{snap.name}\""
+  end
+end
+puts "\n\n-------DELETING AN INSTANCE IS NOT REVERSIBLE.-------"
+if agree("Do you wish to delete the droplet #{opts[:name]}? ") { |q| q.confirm = true }
+  puts "Deleting droplet #{opts[:name]}..."
+  client.droplets.delete(id: selected_drop.id)
+  puts "Done."
+else
+  puts "OK."
+end
